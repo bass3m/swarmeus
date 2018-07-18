@@ -1,0 +1,36 @@
+swarmeus:
+  # in seconds
+  scan_interval: 30
+  #network: "dj-net"
+  network: "dev_dev-net"
+  endpoint: "unix:///var/run/docker.sock"
+  # for swarm use com.docker.swarm.task.name
+  docker_mode: "com.docker.compose.service"
+  sd_file_path: "/prometheus/swarmeus_targets.json"
+
+targets:
+  - job: "nodeexporter"
+    instance_regex: "nodeexporter"
+    port: 9100
+    metrics_path: "/metrics"
+    labels: ["com.docker.compose.service"]
+  - job: "cadvisor"
+    instance_regex: "cadvisor"
+    port: 8888
+    metrics_path: "/metrics"
+  - job: "pnode_jmx_exporter"
+    instance_regex: pnode.\d+
+    port: 7623
+    metrics_path: "/metric"
+  - job: "solr"
+    instance_regex: solr.\d+.\w+
+    port: 7623
+    metrics_path: "/metrics"
+  - job: "kafka"
+    instance_regex: kafka.\d+.\w+
+    port: 7623
+    metrics_path: "/metrics"
+  - job: "zookeeper"
+    instance_regex: zookeeper.\d+.\w+
+    port: 7623
+    metrics_path: "/metrics"
