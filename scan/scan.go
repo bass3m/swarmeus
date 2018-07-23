@@ -11,26 +11,37 @@ import (
 	"time"
 )
 
+var client *docker.Client
+
+func Initialize(c *docker.Client) {
+	client = c
+}
+
 type prometheusTarget struct {
 	Targets []string          `json:"targets"`
 	Labels  map[string]string `json:"labels"`
 }
 
-func writeSDFile(targets []prometheusTarget, filePath string) {
-	log.Debugf("Writing Targets: %+v to %+v", targets, filePath)
+func targetsToJson(targets []prometheusTarget) []byte {
 	jsonTargets, err := json.MarshalIndent(targets, "", "  ")
 	if err != nil {
 		panic(err)
 	}
 	log.Debugf("JSON Targets: %+v", string(jsonTargets))
+	return jsonTargets
+}
 
-	err = ioutil.WriteFile(filePath, jsonTargets, 0644)
+func writeSDFile(targets []prometheusTarget, filePath string) {
+	log.Debugf("Writing Targets: %+v to %+v", targets, filePath)
+	jsonTargets := targetsToJson(targets)
+
+	err := ioutil.WriteFile(filePath, jsonTargets, 0644)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func findTargets(client *docker.Client, mode string, network string, targets []config.Target) ([]prometheusTarget, error) {
+func findTargets(mode string, network string, targets []config.Target) ([]prometheusTarget, error) {
 	var pts []prometheusTarget
 	cs, err := client.ListContainers(docker.ListContainersOptions{})
 	if err != nil {
@@ -67,17 +78,14 @@ func findTargets(client *docker.Client, mode string, network string, targets []c
 
 func Scan(cfg config.Config, cancel <-chan struct{}) {
 	log.Infoln("Starting prometheus target scan")
-	client, err := docker.NewClient(cfg.Swarmeus.Endpoint)
-	if err != nil {
-		panic(err)
-	}
 Loop:
 	for {
 		select {
 		case <-cancel:
 			log.Infoln("Received cancel event. Cancelling scan")
+			return
 		case <-time.After(time.Second * cfg.Swarmeus.ScanInterval):
-			targets, err := findTargets(client, cfg.Swarmeus.DockerMode, cfg.Swarmeus.Network, cfg.Targets)
+			targets, err := findTargets(cfg.Swarmeus.DockerMode, cfg.Swarmeus.Network, cfg.Targets)
 			if err != nil {
 				log.Errorf("Failed to find targets, retrying. error: %v", err)
 			}
@@ -88,5 +96,14 @@ Loop:
 			continue Loop
 		}
 	}
+}
 
+func GetTargets(cfg config.Config) ([]byte, error) {
+	targets, err := findTargets(cfg.Swarmeus.DockerMode, cfg.Swarmeus.Network, cfg.Targets)
+	if err != nil {
+		log.Errorf("Failed to find targets, retrying. error: %v", err)
+		return []byte{}, err
+	}
+	jsonTargets := targetsToJson(targets)
+	return jsonTargets, nil
 }

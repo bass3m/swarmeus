@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/fsouza/go-dockerclient"
 	"net"
 	"net/http"
 	"os"
@@ -50,12 +51,18 @@ func main() {
 
 	log.Debugln("Config:", c)
 
+	client, err := docker.NewClient(c.Swarmeus.Endpoint)
+	if err != nil {
+		panic(err)
+	}
+	scan.Initialize(client)
+
 	// start scanning for containers with metrics
 	cancel := make(chan struct{})
 	go scan.Scan(c, cancel)
 
 	router := httprouter.New()
-	handler.SetupRoutes(router, *routePrefix)
+	handler.SetupRoutes(router, c, *routePrefix)
 
 	l, err := net.Listen("tcp", *listenAddress)
 	if err != nil {
